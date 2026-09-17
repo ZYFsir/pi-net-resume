@@ -64,20 +64,33 @@ name this file exactly:
 | Repository | `pi-net-resume` |
 | Workflow filename | `publish.yml` |
 | Environment name | *(empty -- the workflow sets none)* |
-| Allowed actions | allow `npm publish` |
+| Allowed actions | leave the `npm publish` box **unchecked** (staged publishing only) |
 
 ```bash
 git tag -a v1.1.0 -m "pi-net-resume 1.1.0"
-git push origin v1.1.0          # the tag is the release button
+git push origin v1.1.0          # the tag stages the release
+npm stage list                  # find the stage id
+npm stage approve <stage-id>    # publish it (prompts for OTP)
 ```
 
-The workflow refuses to publish when the tag and `package.json` disagree, so a
-mistyped tag cannot ship the wrong version. It also runs the gate first.
+Note the two steps: the tag **stages**, a human **approves**. That is npm's
+recommended setting and worth keeping, because a pi extension runs with full
+system access -- an unattended publish path is a supply-chain risk for every
+user. The price is one OTP per release, not per attempt.
+
+Approval needs npm >= 11.15.0 locally (`npm install -g npm@latest`), or use the
+package page on npmjs.com, which also offers approval. Rejecting with
+`npm stage reject <stage-id>` discards a release that should not ship; nothing is
+public until approval.
+
+`./publish-package.sh --publish` still publishes directly with your own 2FA,
+which is fine for a human-initiated release -- the staged requirement applies to
+the CI trusted publisher, not to you.
 
 Requirements, all enforced by the runner rather than assumed: `id-token: write`,
-npm >= 11.5.1 (the bundled npm is older, so the workflow upgrades it), Node >=
-22.14.0, and a GitHub-hosted runner. Provenance attaches automatically for a
-public package from a public repository.
+npm >= 11.15.0 for `npm stage` (the bundled npm is older, so the workflow upgrades it and then asserts the version), Node >= 22.14.0, and a GitHub-hosted
+runner. Provenance attaches automatically for a public package from a public
+repository.
 
 **Local.** `./publish-package.sh --publish` still works and is the way to go when
 you want to publish without tagging. It needs your npm credentials and, with 2FA
@@ -204,19 +217,29 @@ publish-package.sh      发布门禁 + 发布脚本
 | Repository | `pi-net-resume` |
 | Workflow filename | `publish.yml` |
 | Environment name | （留空 —— 本 workflow 未设置环境） |
-| Allowed actions | 允许 `npm publish` |
+| Allowed actions | **不要**勾选 `npm publish`（仅允许暂存发布） |
 
 ```bash
 git tag -a v1.1.0 -m "pi-net-resume 1.1.0"
-git push origin v1.1.0          # 打标签就是"发布按钮"
+git push origin v1.1.0          # 打标签 = 送进暂存区
+npm stage list                  # 找到 stage id
+npm stage approve <stage-id>    # 批准上线（会要求 OTP）
 ```
 
-workflow 会在标签与 `package.json` 版本不一致时拒绝发布，所以打错标签不会发错版本；
-它也会先跑一遍门禁。
+注意这是**两步**：标签负责**暂存**，人负责**批准**。这是 npm 推荐的档位，值得保留 ——
+因为 pi 扩展以完整系统权限运行，一条无人把关的发布通道对所有用户都是供应链风险。
+代价是**每次发布一次 OTP**，而不是每次尝试一次。
 
-前置条件（由 runner 强制，而非假设）：`id-token: write`、npm >= 11.5.1
-（runner 自带的 npm 太旧，workflow 会显式升级）、Node >= 22.14.0、
-必须用 GitHub 托管的 runner。公开仓库 + 公开包会自动生成 provenance。
+批准需要本地 npm >= 11.15.0（`npm install -g npm@latest`），
+或者直接用 npmjs.com 的包页面批准。要放弃某次发布用
+`npm stage reject <stage-id>`；**批准之前不会有任何东西公开**。
+
+`./publish-package.sh --publish` 仍是你自己带 2FA 的直接发布，
+人工发起时这样没问题 —— 暂存要求针对的是 CI 的可信发布者，不是你自己。
+
+前置条件（由 runner 强制，而非假设）：`id-token: write`、
+npm >= 11.15.0（`npm stage` 需要；runner 自带的 npm 太旧，workflow 会升级并断言版本）、
+Node >= 22.14.0、必须用 GitHub 托管的 runner。公开仓库 + 公开包会自动生成 provenance。
 
 **本地发布。** `./publish-package.sh --publish` 依然可用，适合不想打标签时。
 它需要你的 npm 凭据；开了 2FA 会要求输入 OTP —— 这大概就是你该用 CI 发布的理由。
