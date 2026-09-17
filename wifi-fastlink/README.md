@@ -90,6 +90,50 @@ python3 wifi_fastlink.py --selftest            # inspect NM, radio, APs
 python3 wifi_fastlink.py --once --dry-run -v   # one cycle, change nothing
 ```
 
+## When this is (and isn't) useful
+
+This is a **targeted tool for one failure mode**, not a general networking
+component. It pays off when **all** of these hold:
+
+- **Linux with NetworkManager.** The whole approach comes from reading NM's own
+  behaviour (`nm-device-wifi.c`): an explicit scan is always allowed while
+  disconnected, rate-limited to 1500 ms, while the periodic scan backs off
+  3s → 4s → 6s → … → 120s. Verified against NetworkManager 1.36. macOS, Windows,
+  `iwd`, `wpa_supplicant` and systemd-networkd-managed setups are **not**
+  supported; the logic would need a different backend per platform.
+- **The AP physically disappears and comes back** — a phone hotspot, a mobile
+  router, a car. If the AP never left, there is nothing to reconnect to.
+- **The credentials are already saved in NetworkManager.** A brand-new SSID with
+  no stored PSK cannot be joined automatically.
+- **You want the reconnect latency bounded by ~one scan** rather than by NM's
+  backoff, i.e. you care about the difference between ~3 s and ~2 minutes.
+- **A systemd user session exists** (for the service). You can also run
+  `wifi_fastlink.py` by hand, or under any supervisor.
+
+It is **not** the right tool when:
+
+- The platform is not Linux + NetworkManager (see above).
+- The SSID has never been joined on this machine.
+- **The outage is upstream**: the AP is in range and associated, but packets do
+  not leave the network (ISP down, captive portal, router rebooted). This watcher
+  only cares about the link, so it will correctly do nothing — and that is the
+  case where [pi-net-resume](../pkg/pi-net-resume/README.md) still helps, because
+  it probes whether the **model endpoint** is reachable rather than whether the
+  link is up. The two components cover different layers of the same outage.
+- There is no outage at all: while connected this tool only blocks on
+  `nmcli monitor` and does nothing else.
+
+### Configuring it for your network
+
+Everything site-specific lives in `~/.config/wifi-fastlink/config.json`. No
+SSID, interface name or path is hardcoded anywhere in this tool: `targets`
+starts empty (`[]`, meaning "auto-learn the current SSID on first run"),
+`interface` defaults to `auto`, and `install.sh` merely *seeds* `targets` with
+whatever SSID the machine happens to be on at install time. Point it at a
+different hotspot by editing that one file — or with
+`wifi_fastlink.py --target <SSID> --once --dry-run` to try it without saving
+anything.
+
 ## Notes / limits
 
 * While **connected**, NetworkManager forbids explicit scans (the supplicant is

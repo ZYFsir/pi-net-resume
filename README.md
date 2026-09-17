@@ -91,7 +91,30 @@ tail -f ~/.local/state/pi-net-resume/pi-net-resume.log
 pi-resume-run.sh --model <provider>/<model> "run the tests and fix failures"
 ```
 
-## 5. Honest limits
+## 5. Scope: what each half is actually for
+
+The two halves cover **different layers of the same outage**, and each one is
+narrow on purpose. Pick the one that matches your failure:
+
+| Your failure | Use |
+| --- | --- |
+| The AP disappeared and came back (phone hotspot, mobile router) | **wifi-fastlink** |
+| The AP is associated but packets do not leave (ISP down, captive portal, router reboot) | **pi-net-resume only** — the link is fine, so the watcher correctly does nothing |
+| pi stopped after a provider error and nobody is at the keyboard | **pi-net-resume** (works with or without the watcher) |
+| Truncated output, HTTP 429, quota exhausted | neither — see [pi-auto-resume](https://www.npmjs.com/package/pi-auto-resume) |
+
+`wifi-fastlink` pays off only when **all** of these hold: Linux with
+NetworkManager; the AP physically leaves and returns; its password is already
+saved; and you care about ~3 s instead of NM's 3 s → 120 s backoff. It is a
+targeted tool, not a general networking component: macOS, Windows, `iwd`,
+`wpa_supplicant` and systemd-networkd setups are not supported, and it needs a
+systemd user session (or any supervisor) to stay resident.
+
+No SSID, interface or path is hardcoded: `targets` starts empty
+(auto-learn), `interface` defaults to `auto`, and the current SSID is only ever
+*seeded into your own* `~/.config/wifi-fastlink/config.json` at install time.
+
+## 6. Honest limits
 
 - Discovery of a hotspot can only happen by scanning, so "hotspot on → connected"
   is bounded below by one scan (~1–3 s here). Five seconds is achievable; one
@@ -109,8 +132,7 @@ pi-resume-run.sh --model <provider>/<model> "run the tests and fix failures"
 - A user-level service only runs while you are logged in. For always-on:
   `sudo loginctl enable-linger $USER`.
 
-## 6. Publishing
-
+## 7. Publishing
 ```bash
 ./publish-package.sh              # verify only: tests, package.json, jiti load, tarball
 ./publish-package.sh --publish    # then npm publish
@@ -119,7 +141,7 @@ pi-resume-run.sh --model <provider>/<model> "run the tests and fix failures"
 The pi package directory is `pkg/pi-net-resume/`; its README is bilingual and is
 the one users see on npm.
 
-## 7. Rollback
+## 8. Rollback
 
 ```bash
 ./uninstall.sh
@@ -210,7 +232,28 @@ tail -f ~/.local/state/pi-net-resume/pi-net-resume.log
 pi-resume-run.sh --model <provider>/<model> "跑测试并修复失败"
 ```
 
-### 五、老实话（限制）
+### 五、适用范围：两半各自到底管什么
+
+两半覆盖的是**同一次断网的不同层次**，各自都很窄，是有意的。按你的故障选：
+
+| 你的故障 | 该用哪个 |
+| --- | --- |
+| AP 消失又出现（手机热点、随身路由） | **wifi-fastlink** |
+| AP 连着但包出不去（宽带断、门户认证、路由器重启） | **只用 pi-net-resume** —— 链路本身没问题，看门狗正确地什么都不做 |
+| pi 因 provider 报错停下、而人不在键盘前 | **pi-net-resume**（装不装看门狗都行） |
+| 输出截断、HTTP 429、额度耗尽 | 两个都不管 —— 见 [pi-auto-resume](https://www.npmjs.com/package/pi-auto-resume) |
+
+`wifi-fastlink` 只有在**同时满足**下列条件时才划算：Linux + NetworkManager；
+AP 真的离开又回来；密码已保存；且你在意"~3 秒"和"NM 的 3 秒→120 秒退避"的差别。
+它是**针对单一故障模式的精准工具**，不是通用网络组件：macOS、Windows、`iwd`、
+`wpa_supplicant`、systemd-networkd 都不支持，并且需要一个 systemd 用户会话
+（或任何进程管理器）来常驻。
+
+没有硬编码任何 SSID、网卡名或路径：`targets` 默认为空（自动学习），
+`interface` 默认 `auto`，当前 SSID 只在安装时**写进你自己的**
+`~/.config/wifi-fastlink/config.json`。
+
+### 六、老实话（限制）
 
 * 发现热点只能靠扫描，"打开热点 → 连上"的下限是一次扫描（这里 1~3s）。
   5 秒目标可达，1 秒内不可能。
@@ -223,7 +266,7 @@ pi-resume-run.sh --model <provider>/<model> "跑测试并修复失败"
   "重试耗尽"。打字或 `/net-resume off` 都能取消。
 * 用户级服务只在登录会话中运行；要常驻：`sudo loginctl enable-linger $USER`。
 
-### 六、发布
+### 七、发布
 
 ```bash
 ./publish-package.sh              # 只校验：测试、package.json、jiti 加载、tarball
@@ -232,7 +275,7 @@ pi-resume-run.sh --model <provider>/<model> "跑测试并修复失败"
 
 pi 包目录是 `pkg/pi-net-resume/`，其 README 为中英双语，也是用户在 npm 上看到的那份。
 
-### 七、回滚
+### 八、回滚
 
 ```bash
 ./uninstall.sh
