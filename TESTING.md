@@ -160,7 +160,7 @@ PI_NET_RESUME_CONFIG=/tmp/dead-config.json \
 | 一直搜不到目标 | `python3 wifi-fastlink/wifi_fastlink.py --selftest` 看 `visible APs` 里有没有目标 SSID；确认手机热点是广播 SSID 的 |
 | 看得到但连不上 | 日志里 `activation ... failed`；确认 NetworkManager 里有同名配置：`nmcli -t -f NAME con show`，必要时配 `connection_names` |
 | pi 不自动续跑 | `/net-resume` 看状态；确认扩展已加载（日志里有 `extension_loaded`）；确认错误属于连通性类（`errorPattern`）而不是限流/鉴权 |
-| 扩展根本没加载 | `ls ~/.pi/agent/extensions/pi-net-resume/`；在 pi 里执行 `/reload` |
+| 扩展根本没加载 | `pi list` 看有没有 `npm:pi-net-resume`；再在 pi 里 `/reload` |
 | 重启后服务没起来 | `Linger=no` 时用户级服务只在登录后运行：`sudo loginctl enable-linger $USER` |
 
 ## 4. 回滚
@@ -342,7 +342,7 @@ the cap trips after the second failure.
 | The target is never found | `python3 wifi-fastlink/wifi_fastlink.py --selftest` and look for the SSID under `visible APs`; make sure the hotspot broadcasts its SSID |
 | Visible but will not connect | `activation ... failed` in the log; confirm a profile with that name exists (`nmcli -t -f NAME con show`), and map it via `connection_names` if needed |
 | pi does not auto-resume | `/net-resume` for status; confirm the extension loaded (an `extension_loaded` line in the log); confirm the error is connectivity-class rather than rate-limit/auth |
-| The extension is not loaded at all | `pi list` (or `ls ~/.pi/agent/extensions/pi-net-resume/`); then `/reload` inside pi |
+| The extension is not loaded at all | `pi list` should show `npm:pi-net-resume`; then `/reload` inside pi |
 | The service does not survive logout | with `Linger=no` a user service only runs while you are logged in: `sudo loginctl enable-linger $USER` |
 
 ## 4. Uninstalling

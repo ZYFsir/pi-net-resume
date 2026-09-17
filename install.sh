@@ -2,6 +2,9 @@
 # Install both halves of the "hotspot drops, work continues" setup.
 #
 #   ./install.sh                  install / upgrade everything
+#   ./install.sh --from-checkout  install the extension from this working copy
+#                                 instead of the published npm package (for
+#                                 testing unreleased changes)
 #   ./install.sh --no-retry-tuning
 #                                 do not touch ~/.pi/agent/settings.json
 #   ./install.sh --dry-run        show what would happen, change nothing
@@ -9,20 +12,29 @@
 # Nothing here needs sudo.  The only optional privileged step is printed at the
 # end (loginctl enable-linger) and is needed only to keep the watcher running
 # while nobody is logged in.
+#
+# The pi extension is installed as a package (`pi install npm:pi-net-resume`) so
+# that `pi update --extensions` keeps it current, and so there is exactly one
+# copy on disk.  Hand-placing index.ts in ~/.pi/agent/extensions/ is what this
+# script used to do; that copy silently goes stale, which is why it no longer
+# does.
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
-EXT_DEST="$AGENT_DIR/extensions/pi-net-resume"
+PKG="npm:pi-net-resume"
+PKG_DIR="$AGENT_DIR/npm/node_modules/pi-net-resume"
 BIN_DIR="$HOME/.local/bin"
 RETRY_TUNING=1
 DRY_RUN=0
+FROM_CHECKOUT=0
 
 for arg in "$@"; do
     case "$arg" in
+        --from-checkout) FROM_CHECKOUT=1 ;;
         --no-retry-tuning) RETRY_TUNING=0 ;;
         --dry-run) DRY_RUN=1 ;;
-        -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
         *) echo "unknown option: $arg" >&2; exit 2 ;;
     esac
 done
@@ -44,22 +56,43 @@ fi
 
 echo
 echo "== 2/4 pi-net-resume extension =="
-run mkdir -p "$EXT_DEST"
-run install -m 0644 "$SRC_DIR/pi-net-resume/index.ts" "$EXT_DEST/index.ts"
-run install -m 0644 "$SRC_DIR/pi-net-resume/README.md" "$EXT_DEST/README.md"
-if [[ ! -f "$EXT_DEST/config.json" ]]; then
-    run install -m 0644 "$SRC_DIR/pi-net-resume/config.example.json" "$EXT_DEST/config.json"
-    (( DRY_RUN )) || echo "  wrote default config: $EXT_DEST/config.json"
+if (( FROM_CHECKOUT )); then
+    EXT_DEST="$AGENT_DIR/extensions/pi-net-resume"
+    run mkdir -p "$EXT_DEST"
+    run install -m 0644 "$SRC_DIR/pi-net-resume/index.ts" "$EXT_DEST/index.ts"
+    run install -m 0644 "$SRC_DIR/pi-net-resume/README.md" "$EXT_DEST/README.md"
+    echo "  installed the working copy into $EXT_DEST"
+    echo "  note: this copy does NOT track releases; use 'pi install $PKG' to go back"
 else
-    echo "  keeping existing config: $EXT_DEST/config.json"
+    if command -v pi >/dev/null 2>&1; then
+        run pi install "$PKG"
+        echo "  installed $PKG (update later with: pi update --extensions)"
+    else
+        echo "  pi is not on PATH; install the extension yourself with:" >&2
+        echo "    pi install $PKG" >&2
+    fi
 fi
-echo "  extension installed in $EXT_DEST (auto-discovered by pi)"
+
+# A leftover manual copy shadows nothing but does go stale, and it is the copy
+# people end up editing by accident.  Say so rather than deleting silently.
+STALE="$AGENT_DIR/extensions/pi-net-resume/index.ts"
+if [[ -f "$STALE" ]] && (( ! FROM_CHECKOUT )); then
+    echo "  WARNING: a manually installed copy is still here and is NOT updated by"
+    echo "           releases: $STALE"
+    echo "           remove it to avoid running stale code:  rm \"$STALE\""
+fi
 
 echo
 echo "== 3/4 pi-resume-run.sh (headless wrapper) =="
 run mkdir -p "$BIN_DIR"
-run install -m 0755 "$SRC_DIR/pi-net-resume/pi-resume-run.sh" "$BIN_DIR/pi-resume-run.sh"
-echo "  installed $BIN_DIR/pi-resume-run.sh"
+# Prefer the copy inside the installed package, so the wrapper always matches the
+# released version instead of drifting from this checkout.
+WRAPPER_SRC="$SRC_DIR/pi-net-resume/pi-resume-run.sh"
+if [[ -f "$PKG_DIR/pi-resume-run.sh" ]]; then
+    WRAPPER_SRC="$PKG_DIR/pi-resume-run.sh"
+fi
+run install -m 0755 "$WRAPPER_SRC" "$BIN_DIR/pi-resume-run.sh"
+echo "  installed $BIN_DIR/pi-resume-run.sh (from ${WRAPPER_SRC#$SRC_DIR/})"
 case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
     *) echo "  note: $BIN_DIR is not on PATH; add it or call the script by full path" ;;

@@ -22,6 +22,15 @@ whose step 1 syncs the repo copy — or edit either one and sync manually. The
 tests import the **repo** copy, so an unsynced edit will pass tests against the
 wrong file. This has bitten me once already.
 
+Install the extension as a **package** (`pi install npm:pi-net-resume`), never by
+copying `index.ts` into `~/.pi/agent/extensions/`. A hand-placed copy is invisible
+to `pi update --extensions` and goes stale silently — when this machine was
+migrated, the hand-placed copy turned out to be missing four shipped fixes,
+including the one that stops a real outage from being vetoed by a stray "quota"
+in the error text. `install.sh` no longer creates one, and warns if it finds a
+leftover; `install.sh --from-checkout` is the explicit opt-in for testing
+unreleased changes.
+
 ## Releasing
 
 ```bash
@@ -128,6 +137,13 @@ publish-package.sh      发布门禁 + 发布脚本
 改包副本（`pkg/...`）然后跑 `publish-package.sh`（第 1 步会同步仓库副本），
 或者改任一份再手动同步。**测试 import 的是仓库副本**，所以没同步就改会导致
 "测试跑的是另一个文件"。这个坑我已经踩过一次。
+
+扩展要以**包**的形式安装（`pi install npm:pi-net-resume`），
+绝不要把 `index.ts` 拷进 `~/.pi/agent/extensions/`。手放的副本对
+`pi update --extensions` 不可见，会**静默过时** —— 这台机器迁移时发现手写副本
+少了四个已发布的修复，其中包括"避免真断网被错误文本里的 quota 字样否决"那个。
+`install.sh` 不再创建它，发现残留会警告；`install.sh --from-checkout` 是
+测试未发布改动的显式开关。
 
 ### 发布
 

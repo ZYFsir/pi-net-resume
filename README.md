@@ -75,7 +75,7 @@ backup) so short hiccups are absorbed by pi itself. Skip that with
 | `~/.local/share/wifi-fastlink/wifi_fastlink.py` | the watcher |
 | `~/.config/wifi-fastlink/config.json` | target SSIDs etc. (seeded with the current SSID) |
 | `~/.config/systemd/user/wifi-fastlink.service` | user service, `Restart=always` |
-| `~/.pi/agent/extensions/pi-net-resume/index.ts` | the pi extension |
+| `~/.pi/agent/npm/node_modules/pi-net-resume/` | the pi extension (installed as a package, so `pi update --extensions` keeps it current) |
 | `~/.local/bin/pi-resume-run.sh` | headless `pi -p` wrapper |
 | `~/.local/state/wifi-fastlink/wifi-fastlink.log` | Wi-Fi timeline (ms + JSON events) |
 | `~/.local/state/pi-net-resume/pi-net-resume.log` | extension evidence chain (JSON lines) |
@@ -219,7 +219,7 @@ pi 的重试是 `retry.maxRetries`（默认 3 次，退避 2s/4s/8s ≈ 14 秒�
 | `~/.local/share/wifi-fastlink/wifi_fastlink.py` | 看门狗主程序 |
 | `~/.config/wifi-fastlink/config.json` | 目标 SSID 等（安装时填入当前 SSID） |
 | `~/.config/systemd/user/wifi-fastlink.service` | 用户级服务，`Restart=always` |
-| `~/.pi/agent/extensions/pi-net-resume/index.ts` | pi 扩展 |
+| `~/.pi/agent/npm/node_modules/pi-net-resume/` | pi 扩展（以包形式安装，`pi update --extensions` 即可升级） |
 | `~/.local/bin/pi-resume-run.sh` | 无头 `pi -p` 包装脚本 |
 | `~/.local/state/wifi-fastlink/wifi-fastlink.log` | Wi-Fi 时间线（毫秒 + JSON 事件） |
 | `~/.local/state/pi-net-resume/pi-net-resume.log` | 扩展证据链（JSON lines） |
