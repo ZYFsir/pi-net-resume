@@ -26,9 +26,9 @@ python3 wifi-fastlink/wifi_fastlink.py --once --dry-run --target hhh
 
 # 无头包装脚本：用法自检（退出码 2）+ 离线探测
 # （用本机死端口当探针 = 必然判定离线，退出码 1，不碰真实网络）
-pi-net-resume/pi-resume-run.sh
+pkg/pi-net-resume/pi-resume-run.sh
 PI_RESUME_PROBE_HOST=127.0.0.1 PI_RESUME_PROBE_PORT=59999 \
-  pi-net-resume/pi-resume-run.sh --check-online
+  pkg/pi-net-resume/pi-resume-run.sh --check-online
 ```
 
 ## 1. 验收 Wi-Fi 5 秒内重连
@@ -145,7 +145,7 @@ export default function (pi: ExtensionAPI) {
 }
 TS
 PI_NET_RESUME_CONFIG=/tmp/dead-config.json \
-  pi -e ./pi-net-resume/index.ts -e /tmp/dead-provider.ts \
+  pi -e ./pkg/pi-net-resume/index.ts -e /tmp/dead-provider.ts \
      --provider dead --model dead "hello"
 ```
 
@@ -207,9 +207,9 @@ python3 wifi-fastlink/wifi_fastlink.py --once --dry-run --target <SSID>
 
 # Headless wrapper: usage self-check (exit 2) + an offline probe
 # (a dead local port = reliably offline, exit 1; no real network involved).
-pi-net-resume/pi-resume-run.sh
+pkg/pi-net-resume/pi-resume-run.sh
 PI_RESUME_PROBE_HOST=127.0.0.1 PI_RESUME_PROBE_PORT=59999 \
-  pi-net-resume/pi-resume-run.sh --check-online
+  pkg/pi-net-resume/pi-resume-run.sh --check-online
 ```
 
 ## 1. Accepting the "reconnect within 5 seconds" claim
@@ -334,7 +334,7 @@ export default function (pi: ExtensionAPI) {
 }
 TS
 PI_NET_RESUME_CONFIG=/tmp/dead-config.json \
-  pi -e ./pi-net-resume/index.ts -e /tmp/dead-provider.ts \
+  pi -e ./pkg/pi-net-resume/index.ts -e /tmp/dead-provider.ts \
      --provider dead --model dead "hello"
 ```
 

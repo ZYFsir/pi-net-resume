@@ -152,7 +152,8 @@ Most useful keys:
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `continueMessage` | `The network is back… continue` | the prompt injected after a reconnect |
+| `continueMessage` | `The network is back… continue` | the text used to restart the turn |
+| `resumeStyle` | `hybrid` | `hybrid` = model sees nothing, you see a note; `hidden` = neither; `visible` = send it as a real user message |
 | `armOnlyWhenOffline` | `true` | only arm when the link is actually down |
 | `maxAutoResumes` | `20` | hard cap on auto-resumes |
 | `minSecondsBetweenResumes` | `15` | throttle between resumes |
@@ -215,7 +216,10 @@ run succeeds or a limit is reached.
   `MODEL_BASE_URL` / `PI_BASE_URL` / `OPENAI_BASE_URL`, then your pi
   `settings.json` + `models-store.json`, then `1.1.1.1:443`.
 - Sessions go to `~/.local/state/pi-net-resume/sessions/` (override with
-  `PI_RESUME_SESSION_DIR`), never into the normal project session store.
+  `PI_RESUME_SESSION_DIR`), never into the normal project session store — a
+  headless run must not look like a stray file in a live session's project
+  directory, because a cleanup-minded agent once deleted that whole directory
+  and took its own transcript with it.
 
 ## Portability
 
@@ -366,7 +370,8 @@ agent 目录默认 `~/.pi/agent`，可用 `PI_CODING_AGENT_DIR` 覆盖。
 
 | 键 | 默认 | 含义 |
 | --- | --- | --- |
-| `continueMessage` | `The network is back… continue` | 重连后注入的提示词（可换成任意语言） |
+| `continueMessage` | `The network is back… continue` | 用于重新启动该轮的文本（可换成任意语言） |
+| `resumeStyle` | `hybrid` | `hybrid`=模型看不到、你能看到一条说明；`hidden`=两者都看不到；`visible`=当成真实用户消息发出 |
 | `armOnlyWhenOffline` | `true` | 只在链路确实断了时才待命 |
 | `maxAutoResumes` | `20` | 自动续跑次数上限 |
 | `minSecondsBetweenResumes` | `15` | 两次续跑之间的节流 |

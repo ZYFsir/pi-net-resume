@@ -59,8 +59,8 @@ echo "== 2/4 pi-net-resume extension =="
 if (( FROM_CHECKOUT )); then
     EXT_DEST="$AGENT_DIR/extensions/pi-net-resume"
     run mkdir -p "$EXT_DEST"
-    run install -m 0644 "$SRC_DIR/pi-net-resume/index.ts" "$EXT_DEST/index.ts"
-    run install -m 0644 "$SRC_DIR/pi-net-resume/README.md" "$EXT_DEST/README.md"
+    run install -m 0644 "$SRC_DIR/pkg/pi-net-resume/index.ts" "$EXT_DEST/index.ts"
+    run install -m 0644 "$SRC_DIR/pkg/pi-net-resume/README.md" "$EXT_DEST/README.md"
     echo "  installed the working copy into $EXT_DEST"
     echo "  note: this copy does NOT track releases; use 'pi install $PKG' to go back"
 else
@@ -87,7 +87,7 @@ echo "== 3/4 pi-resume-run.sh (headless wrapper) =="
 run mkdir -p "$BIN_DIR"
 # Prefer the copy inside the installed package, so the wrapper always matches the
 # released version instead of drifting from this checkout.
-WRAPPER_SRC="$SRC_DIR/pi-net-resume/pi-resume-run.sh"
+WRAPPER_SRC="$SRC_DIR/pkg/pi-net-resume/pi-resume-run.sh"
 if [[ -f "$PKG_DIR/pi-resume-run.sh" ]]; then
     WRAPPER_SRC="$PKG_DIR/pi-resume-run.sh"
 fi

@@ -36,7 +36,7 @@ jobs:
       - name: Shell scripts parse
         run: |
           for script in install.sh uninstall.sh publish-package.sh \
-                        wifi-fastlink/install.sh pi-net-resume/pi-resume-run.sh; do
+                        wifi-fastlink/install.sh pkg/pi-net-resume/pi-resume-run.sh; do
             bash -n "$script"
             echo "ok $script"
           done

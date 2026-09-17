@@ -17,7 +17,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const EXTENSION = join(HERE, "..", "pi-net-resume", "index.ts");
+const EXTENSION = join(HERE, "..", "pkg", "pi-net-resume", "index.ts");
 
 let failures = 0;
 const tests = [];
@@ -79,7 +79,17 @@ async function boot(configOverrides = {}) {
 		appendEntry() {},
 		exec: async () => ({ stdout: "", stderr: "", code: 0, killed: false }),
 		sendUserMessage(content, options) {
-			sent.push({ content, options });
+			sent.push({ kind: "user", content, options });
+		},
+		sendMessage(message, options) {
+			// A custom message: the invisible-continuation path.
+			sent.push({
+				kind: "custom",
+				content: message.content,
+				customType: message.customType,
+				display: message.display,
+				options,
+			});
 		},
 	};
 	module.default(pi);
@@ -93,8 +103,14 @@ async function boot(configOverrides = {}) {
 		},
 	};
 
+	// Handlers may return a value (the `context` hook rewrites messages), so
+	// collect results instead of discarding them.
 	const emit = async (name, event = {}) => {
-		for (const handler of handlers.get(name) ?? []) await handler({ type: name, ...event }, ctx);
+		const results = [];
+		for (const handler of handlers.get(name) ?? []) {
+			results.push(await handler({ type: name, ...event }, ctx));
+		}
+		return results;
 	};
 
 	const readLog = () =>
@@ -277,7 +293,11 @@ test("waits for the link to come back, then resumes the session", async () => {
 	} finally {
 		await server.close();
 	}
-	assert.equal(app.sent[0].content.includes("The network is back"), true);
+	assert.equal(String(app.sent[0].content).includes("The network is back"), true);
+	// default resumeStyle is "hybrid": the model-facing text is carried by a
+	// custom marker that the context hook removes, not by a user message
+	assert.equal(app.sent[0].kind, "custom", "hybrid style must not send a user message");
+	assert.equal(app.sent[0].customType, "pi-net-resume:resume");
 	assert.ok(app.events().includes("auto_resume"));
 	const resumed = app.readLog().find((entry) => entry.event === "auto_resume");
 	assert.equal(resumed.resumeCount, 1);
@@ -344,6 +364,121 @@ test("/net-resume reports status and /net-resume off disables automation", async
 	await app.emit("agent_settled");
 	await new Promise((r) => setTimeout(r, 300));
 	assert.equal(app.sent.length, 0, "disabled sessions must not auto-resume");
+});
+
+// -- invisible continuation (absorbed from pi-invisible-continue) ---------- //
+
+const MARKER = { role: "custom", customType: "pi-net-resume:resume", content: "continue" };
+const FAILED = { role: "assistant", stopReason: "error", content: [] };
+const FAILED_ABORTED = { role: "assistant", stopReason: "aborted", content: [] };
+const WITH_TOOL_CALL = {
+	role: "assistant",
+	stopReason: "error",
+	content: [{ type: "toolCall", name: "bash", arguments: {} }],
+};
+const USER = { role: "user", content: [{ type: "text", text: "do the thing" }] };
+
+/** Run only the context hook; return the rewritten messages, or null for no rewrite. */
+async function contextAfter(app, messages) {
+	const results = await app.emit("context", { messages });
+	const rewrite = results.find((r) => r && Array.isArray(r.messages));
+	return rewrite ? rewrite.messages : null;
+}
+
+/** Boot with a live endpoint so a resume can actually complete. */
+async function bootWithLiveLink(overrides = {}) {
+	const server = await listen();
+	const app = await boot({ _baseUrl: `http://127.0.0.1:${server.port}/v1`, ...overrides });
+	return { app, server };
+}
+
+/** Drive one full outage -> resume cycle and return the injected message. */
+async function resumeOnce(overrides = {}) {
+	// The endpoint is deliberately live at settle time here: these cases are about
+	// *how* the turn is restarted, not about the arming decision, so the
+	// "only arm while offline" guard is switched off.
+	const { app, server } = await bootWithLiveLink({ armOnlyWhenOffline: false, ...overrides });
+	try {
+		await app.emit("agent_end", { messages: [NET_ERROR] });
+		await app.emit("agent_settled");
+		await waitFor(() => app.sent.length > 0, 5000, "a resume");
+		return app.sent[0];
+	} finally {
+		await server.close();
+	}
+}
+
+test("the resume marker never reaches the model", async () => {
+	const app = await boot();
+	const out = await contextAfter(app, [USER, FAILED, MARKER]);
+	assert.ok(out, "a rewrite must be returned when a marker is present");
+	assert.equal(out.some((m) => m.role === "custom"), false, "the marker must be removed");
+});
+
+test("trailing failed attempts are stripped from the resumed request", async () => {
+	const app = await boot();
+	// A real outage leaves one empty assistant message per retry.
+	const out = await contextAfter(app, [USER, FAILED, FAILED_ABORTED, MARKER]);
+	assert.deepEqual(out, [USER], "both failed attempts and the marker must go");
+});
+
+test("stripping keeps tool-call attempts, which must stay paired", async () => {
+	const app = await boot();
+	const out = await contextAfter(app, [USER, WITH_TOOL_CALL, MARKER]);
+	assert.deepEqual(out, [USER, WITH_TOOL_CALL], "an attempt with tool calls must survive");
+});
+
+test("stripping never empties the context", async () => {
+	const app = await boot();
+	const out = await contextAfter(app, [FAILED, MARKER]);
+	assert.ok(out, "a rewrite is still expected");
+	assert.equal(out.length, 1, "the failed attempt stays when it is all there is");
+});
+
+test("a later turn keeps its own failed attempt visible", async () => {
+	// The marker stays in the session history, so it is present again on every
+	// later request.  Only the resume turn itself may lose its trailing failed
+	// attempts; a later error is pi's to report, not ours to hide.
+	const app = await boot();
+	const stale = [USER, MARKER, { role: "assistant", stopReason: "stop", content: [] }, USER, FAILED];
+	const out = await contextAfter(app, stale);
+	assert.ok(out, "the marker must still be removed from the request");
+	assert.equal(out.some((m) => m.role === "custom"), false, "marker removed");
+	assert.equal(out[out.length - 1], FAILED, "a later failure must NOT be stripped");
+});
+
+test("an ordinary turn is left completely untouched", async () => {
+	// No marker => not ours to act on.  This is what keeps the extension from
+	// interfering with pi's own retries or compaction.
+	const app = await boot();
+	const out = await contextAfter(app, [USER, FAILED, { role: "assistant", stopReason: "stop", content: [] }]);
+	assert.equal(out, null, "no marker means no rewrite");
+});
+
+test("resumeStyle=visible sends a user message and rewrites nothing", async () => {
+	const first = await resumeOnce({ resumeStyle: "visible" });
+	assert.equal(first.kind, "user", "visible style must send a real user message");
+	assert.equal(String(first.content).includes("The network is back"), true);
+	const app = await boot();
+	const out = await contextAfter(app, [USER, FAILED]);
+	assert.equal(out, null, "visible style leaves no marker, so nothing is rewritten");
+});
+
+test("resumeStyle=hidden triggers a turn with nothing displayed", async () => {
+	const first = await resumeOnce({ resumeStyle: "hidden" });
+	assert.equal(first.kind, "custom", "hidden style must not send a user message");
+	assert.equal(first.customType, "pi-net-resume:resume");
+	assert.equal(first.display, false, "hidden style must not display the marker");
+});
+
+test("resumeStyle=hybrid shows a note to the human but not to the model", async () => {
+	const first = await resumeOnce(); // hybrid is the default
+	assert.equal(first.kind, "custom");
+	assert.equal(first.display, true, "hybrid shows the note in the transcript");
+	// ...and that very same message is what the context hook removes
+	const app = await boot();
+	const out = await contextAfter(app, [USER, FAILED, MARKER]);
+	assert.equal(out.some((m) => m.role === "custom"), false);
 });
 
 // -- probe target resolution (portability) -------------------------------- //

@@ -8,19 +8,13 @@ need anything here — see [README.md](README.md) for install and usage.
 ## Layout
 
 ```
-pi-net-resume/          working copy of the extension (what the tests import)
-pkg/pi-net-resume/      the publishable npm package (what `npm publish` ships)
+pkg/pi-net-resume/      the extension -- single source of truth for both the npm
+                        package and the tests; there is no second copy
 wifi-fastlink/          the Linux/NetworkManager watcher, not published to npm
 tests/                  offline test suites for both halves
 package.json            repo-root shim so `pi install git:...` finds the extension
 publish-package.sh      release gate + publisher
 ```
-
-`pi-net-resume/index.ts` and `pkg/pi-net-resume/index.ts` are **two copies of the
-same file**. Edit the package copy (`pkg/...`) and run `publish-package.sh`,
-whose step 1 syncs the repo copy — or edit either one and sync manually. The
-tests import the **repo** copy, so an unsynced edit will pass tests against the
-wrong file. This has bitten me once already.
 
 Install the extension as a **package** (`pi install npm:pi-net-resume`), never by
 copying `index.ts` into `~/.pi/agent/extensions/`. A hand-placed copy is invisible
@@ -41,7 +35,7 @@ unreleased changes.
 
 The gate runs six checks and stops at the first failure:
 
-1. sync the repo copy into the package
+1. required package files are present
 2. both test suites (must pass)
 3. `package.json` sanity: `pi-package` keyword, semver, `pi.extensions`, a
    `files` whitelist, no pi core package in `dependencies`, no `REPLACE_ME`
@@ -94,6 +88,10 @@ user's config (the `/net-resume` status line prints the config path it used).
 
 ## Housekeeping
 
+- **Never reintroduce a second copy of `index.ts`.** There used to be one under
+  `pi-net-resume/`, and `publish-package.sh` "synced" the two — in the direction
+  that silently overwrote whichever one you had just edited. It destroyed a
+  session's worth of implementation work. The tests and npm now share one file.
 - Never commit runtime state: `.pi/tasks/`, `.pi/settings.json`, `*.bak.*`,
   `__pycache__/`, `node_modules/`, `*.tgz`. `.gitignore` covers these; check
   `git status --short` before committing.
@@ -125,18 +123,12 @@ user's config (the `/net-resume` status line prints the config path it used).
 ### 目录结构
 
 ```
-pi-net-resume/          扩展的工作副本（测试实际 import 的那份）
-pkg/pi-net-resume/      可发布的 npm 包（npm publish 发的是这个目录）
+pkg/pi-net-resume/      扩展本体 —— npm 包与测试共用的唯一来源，没有第二份拷贝
 wifi-fastlink/          Linux/NetworkManager 看门狗，不发布到 npm
 tests/                  两半的离线测试
 package.json            仓库根 shim，让 pi install git:... 能找到扩展
 publish-package.sh      发布门禁 + 发布脚本
 ```
-
-`pi-net-resume/index.ts` 与 `pkg/pi-net-resume/index.ts` 是**同一文件的两份拷贝**。
-改包副本（`pkg/...`）然后跑 `publish-package.sh`（第 1 步会同步仓库副本），
-或者改任一份再手动同步。**测试 import 的是仓库副本**，所以没同步就改会导致
-"测试跑的是另一个文件"。这个坑我已经踩过一次。
 
 扩展要以**包**的形式安装（`pi install npm:pi-net-resume`），
 绝不要把 `index.ts` 拷进 `~/.pi/agent/extensions/`。手放的副本对
@@ -155,7 +147,7 @@ publish-package.sh      发布门禁 + 发布脚本
 
 门禁六步，遇错即停：
 
-1. 把仓库副本同步进包目录
+1. 包目录所需文件齐全
 2. 两套测试（必须全过）
 3. `package.json` 体检：`pi-package` 关键词、semver、`pi.extensions`、
    `files` 白名单、core 包不能出现在 `dependencies`、不能残留 `REPLACE_ME`
@@ -203,6 +195,9 @@ diff <(python3 -c 'import json;print(json.load(open("/tmp/settings-pre.json"))["
 
 ### 日常维护注意
 
+* **绝不要重新引入 `index.ts` 的第二份拷贝。** 以前 `pi-net-resume/` 下有一份，
+  而 `publish-package.sh` 会"同步"两者 —— 同步方向恰好是**静默覆盖你刚编辑的那一份**，
+  已经毁掉过一整轮实现工作。现在测试与 npm 共用同一个文件。
 * 绝不提交运行时状态：`.pi/tasks/`、`.pi/settings.json`、`*.bak.*`、
   `__pycache__/`、`node_modules/`、`*.tgz`。`.gitignore` 已覆盖，提交前扫一眼
   `git status --short`。

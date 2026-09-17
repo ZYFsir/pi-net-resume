@@ -43,6 +43,16 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 
 const EXTENSION_ID = "pi-net-resume";
 
+/**
+ * The hidden custom message that starts a resumed turn.  It carries no content
+ * the model should see; the `context` hook below removes it before the provider
+ * call, so the continuation can be invisible to the LLM.
+ *
+ * Technique adapted from pi-invisible-continue (MIT,
+ * https://github.com/monotykamary/pi-invisible-continue).  See resumeStyle.
+ */
+const RESUME_MARKER = "pi-net-resume:resume";
+
 const DEFAULTS = {
 	enabled: true,
 	/** Only arm when the network is really down at settle time. */
@@ -81,6 +91,18 @@ const DEFAULTS = {
 	logFile: "~/.local/state/pi-net-resume/pi-net-resume.log",
 	/** Show desktop notifications on resume. */
 	notify: true,
+	/**
+	 * How the resumed turn is started:
+	 *
+	 *   "hybrid"  - the turn is triggered by a hidden custom marker that the
+	 *               `context` hook strips before the provider call, so the model
+	 *               sees no new prompt text; the marker is displayed, so a human
+	 *               reading the transcript still sees that an outage happened.
+	 *   "hidden"  - as above, but nothing is displayed at all.
+	 *   "visible" - send `continueMessage` as a real user message, so the model is
+	 *               told why the turn restarted (and so is any reader).
+	 */
+	resumeStyle: "hybrid" as "hybrid" | "hidden" | "visible",
 };
 
 type Config = typeof DEFAULTS;
@@ -161,6 +183,72 @@ function logTo(config: Config, event: string, data: Record<string, unknown> = {}
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// --------------------------------------------------------------------------- //
+// invisible continuation
+// --------------------------------------------------------------------------- //
+//
+// Adapted from pi-invisible-continue (MIT),
+// https://github.com/monotykamary/pi-invisible-continue
+//
+// A resumed turn has to start somehow.  Sending a user message is the obvious
+// way, but it puts text in front of the model that the model did not ask for --
+// after an outage that text is noise at best, and can read as a new instruction
+// at worst.  Instead the turn is started by a custom message that this extension
+// removes again in the `context` hook, so the model simply continues from where
+// the conversation actually stopped.
+
+function isResumeMarker(message: unknown): boolean {
+	if (!message || typeof message !== "object") return false;
+	const candidate = message as { role?: unknown; customType?: unknown };
+	return candidate.role === "custom" && candidate.customType === RESUME_MARKER;
+}
+
+/** An assistant attempt that never produced a usable answer. */
+function isIncompleteAssistant(message: unknown): boolean {
+	if (!message || typeof message !== "object") return false;
+	const candidate = message as { role?: unknown; stopReason?: unknown };
+	return (
+		candidate.role === "assistant" &&
+		(candidate.stopReason === "error" || candidate.stopReason === "aborted")
+	);
+}
+
+function hasToolCalls(message: unknown): boolean {
+	if (!message || typeof message !== "object") return false;
+	const content = (message as { content?: unknown }).content;
+	return (
+		Array.isArray(content) &&
+		content.some(
+			(block) =>
+				!!block &&
+				typeof block === "object" &&
+				(block as { type?: unknown }).type === "toolCall",
+		)
+	);
+}
+
+/**
+ * Drop trailing failed attempts (retry-exhausted errors, aborts) so a resumed
+ * turn does not re-serve the outage to the model.  Each failed provider call
+ * leaves an assistant message with empty content, so after a few retries the
+ * history ends in several of them.
+ *
+ * Guards: stop at the first message that is not an incomplete assistant, never
+ * drop one that carries tool calls (its results have to stay paired), and never
+ * empty the context.
+ */
+function stripTrailingIncompleteAssistants<T>(messages: readonly T[]): T[] {
+	const stripped = [...messages];
+	while (
+		stripped.length > 1 &&
+		isIncompleteAssistant(stripped[stripped.length - 1]) &&
+		!hasToolCalls(stripped[stripped.length - 1])
+	) {
+		stripped.pop();
+	}
+	return stripped;
 }
 
 function tcpProbe(host: string, port: number, timeoutMs: number): Promise<boolean> {
@@ -354,6 +442,64 @@ export default function (pi: ExtensionAPI) {
 		return { online: false, detail };
 	}
 
+	/**
+	 * Remove our own marker from the outgoing request, and drop the failed
+	 * attempts that led here.
+	 *
+	 * The marker only exists on a turn *we* started, so an ordinary turn is
+	 * returned untouched.  That early return is what keeps this hook from
+	 * interfering with pi's own retries, compaction or anything else.
+	 */
+	pi.on("context", async (event) => {
+		const messages = event.messages as unknown[];
+		if (!messages.some(isResumeMarker)) return;
+
+		// The marker is what starts the resumed turn, so it will still be in the
+		// history for the rest of the session.  Always drop it from the request --
+		// the model must never read it -- but only strip the failed attempts when
+		// this *is* that resume turn (the marker is the newest entry).  Otherwise
+		// a later, unrelated failure would be hidden from the model too, which
+		// would be pi's problem to report, not ours to silence.
+		const resumesThisTurn = isResumeMarker(messages[messages.length - 1]);
+		const withoutMarker = messages.filter((message) => !isResumeMarker(message));
+		const next = resumesThisTurn
+			? stripTrailingIncompleteAssistants(withoutMarker)
+			: withoutMarker;
+
+		if (next.length !== messages.length) {
+			logTo(config, "context_rewritten", {
+				removed: messages.length - next.length,
+				from: messages.length,
+				to: next.length,
+				resumeTurn: resumesThisTurn,
+			});
+			return { messages: next };
+		}
+	});
+
+	/**
+	 * Start the resumed turn in the configured style.  "visible" tells the model
+	 * why the conversation restarted; the other two keep it out of the model's
+	 * view and differ only in what a human sees.
+	 */
+	function injectResume(): void {
+		const style = config.resumeStyle;
+		if (style === "visible") {
+			pi.sendUserMessage(config.continueMessage);
+			return;
+		}
+		pi.sendMessage(
+			{
+				customType: RESUME_MARKER,
+				// Never read by the model: the `context` hook strips this very
+				// message.  It is only shown when the style wants a human trace.
+				content: config.continueMessage,
+				display: style === "hybrid",
+			},
+			{ triggerTurn: true, deliverAs: "followUp" },
+		);
+	}
+
 	// -- resume loop ------------------------------------------------------- //
 
 	async function waitAndResume(ctx: ExtensionContext): Promise<void> {
@@ -423,6 +569,7 @@ export default function (pi: ExtensionAPI) {
 						resumeCount,
 						waitedSeconds: Math.round((Date.now() - startedAt) / 1000),
 						detail: check.detail,
+						resumeStyle: config.resumeStyle,
 					});
 					if (config.notify) {
 						void pi
@@ -432,7 +579,7 @@ export default function (pi: ExtensionAPI) {
 							])
 							.catch(() => undefined);
 					}
-					pi.sendUserMessage(config.continueMessage);
+					injectResume();
 					return;
 				}
 				// wait for the poll interval, but wake up immediately on new input
@@ -534,8 +681,8 @@ export default function (pi: ExtensionAPI) {
 				resumeCount += 1;
 				lastResumeAt = Date.now();
 				pending = null;
-				logTo(config, "manual_resume", { detail });
-				pi.sendUserMessage(config.continueMessage);
+				logTo(config, "manual_resume", { detail, resumeStyle: config.resumeStyle });
+				injectResume();
 				return;
 			}
 			const { online, detail } = await isOnline(ctx);
@@ -544,6 +691,7 @@ export default function (pi: ExtensionAPI) {
 				`config        : ${path}`,
 				`status        : ${waiting ? "waiting for the network" : pending ? "armed" : "idle"}`,
 				`resumes used  : ${resumeCount}/${config.maxAutoResumes}`,
+				`resume style  : ${config.resumeStyle}`,
 				`link now      : ${online ? "up" : "down"} (${detail})`,
 				`probe targets : ${probeTargets(config, ctx).map((t) => `${t.host}:${t.port}`).join(", ") || "none"}`,
 				`log           : ${expand(config.logFile) || "disabled"}`,

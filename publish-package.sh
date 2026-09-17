@@ -6,13 +6,22 @@
 #   ./publish-package.sh --publish    # verify, then npm publish
 #   ./publish-package.sh --publish --dry-run
 #
-# The script keeps the repo copy and the package copy in sync, so there is only
-# one place to edit the extension (pi-net-resume/index.ts).
+# Verify (and optionally publish) the pi-net-resume package, with the checks that
+# matter done before anything leaves the machine.
+#
+#   ./publish-package.sh              # verify only (default): no publish
+#   ./publish-package.sh --publish    # verify, then npm publish
+#   ./publish-package.sh --publish --dry-run
+#
+# pkg/pi-net-resume/ is the single source of truth for the extension: it is both
+# what npm publishes and what the tests import.  There used to be a second copy
+# under pi-net-resume/ that this script "synced", which silently overwrote
+# whichever copy you had just edited -- it destroyed a session's worth of work
+# once.  If you find yourself wanting to add a sync step, delete a copy instead.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PKG_DIR="$REPO_DIR/pkg/pi-net-resume"
-SRC_DIR="$REPO_DIR/pi-net-resume"
 DO_PUBLISH=0
 DRY_RUN=0
 
@@ -25,15 +34,14 @@ for arg in "$@"; do
     esac
 done
 
-echo "== 1/6 sync sources repo -> package =="
-install -m 0644 "$SRC_DIR/index.ts"            "$PKG_DIR/index.ts"
-install -m 0644 "$SRC_DIR/config.example.json" "$PKG_DIR/config.example.json"
-install -m 0755 "$SRC_DIR/pi-resume-run.sh"    "$PKG_DIR/pi-resume-run.sh"
-if ! diff -q "$SRC_DIR/README.md" "$PKG_DIR/README.md" >/dev/null; then
-    echo "  note: READMEs differ (the package README has npm install instructions)."
-    echo "        The packaged copy is authoritative for npm; review it manually."
-fi
-echo "  synced index.ts, config.example.json, pi-resume-run.sh"
+echo "== 1/6 package files present =="
+for required in index.ts config.example.json pi-resume-run.sh README.md package.json LICENSE; do
+    if [[ ! -f "$PKG_DIR/$required" ]]; then
+        echo "  FAIL: missing $PKG_DIR/$required" >&2
+        exit 1
+    fi
+done
+echo "  ok: all required files in $(realpath --relative-to="$REPO_DIR" "$PKG_DIR")"
 
 echo
 echo "== 2/6 tests (must pass before anything ships) =="

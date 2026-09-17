@@ -1,6 +1,6 @@
 {
   "name": "pi-net-resume",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Auto-continue a pi session after a network outage: arm on a connectivity error, wait for the link, then resume the same session with full context.",
   "keywords": [
     "pi-package",

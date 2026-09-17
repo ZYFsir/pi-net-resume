@@ -15,6 +15,7 @@
   "checkNetworkManager": true,
   "extraProbeHosts": [],
   "continueMessage": "The network is back (Wi-Fi reconnected). Continue the task from where it was interrupted; do not repeat steps that already completed. If anything from the last step is uncertain, say so briefly before continuing.",
+  "resumeStyle": "hybrid",
   "errorPattern": "network|fetch failed|ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ECONNABORTED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|socket hang up|other side closed|getaddrinfo|connection (refused|lost|reset|closed|error)|reset before headers|upstream connect|timed? ?out|timeout|terminated|websocket|dns",
   "excludePattern": "usage limit|insufficient_quota|out of budget|quota|billing|rate.?limit|too many requests|\\b429\\b|unauthorized|invalid api key|authentication",
   "hardNetworkPattern": "ECONNRESET|ECONNREFUSED|ECONNABORTED|ENETUNREACH|EHOSTUNREACH|ENETDOWN|NETRESET|EPIPE|EPROTO|ENOTFOUND|EAI_AGAIN|EAI_FAIL|getaddrinfo|fetch failed|socket hang up|other side closed|reset before headers|network is unreachable|no route to host|name or service not known|temporary failure in name resolution|dns lookup failed|connect(ion)? (refused|lost|reset|timed? ?out)",
