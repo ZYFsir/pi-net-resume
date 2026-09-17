@@ -149,8 +149,16 @@ PI_NET_RESUME_CONFIG=/tmp/dead-config.json \
      --provider dead --model dead "hello"
 ```
 
-只要 `/tmp/dead-config.json` 里 `armOnlyWhenOffline=false`、`maxAutoResumes=1`，
-就能观察到 "network_error → armed → auto_resume"，第二次失败后触发上限保护。
+**注意 `-p` 模式的限制**（实测确认）：`pi -p` 在 agent settle 之后**立刻退出**，
+而扩展的续跑路径要再等 800ms 稳定 + 复检，所以进程已经没了 —— 你只能看到
+`network_error → armed → waiting_for_network`，**看不到 `auto_resume`**。
+这正说明 `-p` 场景必须用 `pi-resume-run.sh`（它负责把进程重新拉起来）。
+
+要观察完整的 `auto_resume`，得用**交互式** pi（TUI 里任务跑到 settle 时不要关），
+或者在 `/tmp/dead-config.json` 里把 `probeTimeoutMs` 调大观察 `armed` 之后的状态转换。
+`-p` 模式的等价验证是自动化用例
+（`tests/test_net_resume.mjs` 里的 "waits for the link to come back, then resumes the session"），
+它用假 pi API 驱动同一条代码路径。
 
 ## 3. 常见问题排查
 
@@ -331,8 +339,18 @@ PI_NET_RESUME_CONFIG=/tmp/dead-config.json \
 ```
 
 With `armOnlyWhenOffline=false` and `maxAutoResumes=1` in
-`/tmp/dead-config.json`, you will see "network_error → armed → auto_resume", and
-the cap trips after the second failure.
+`/tmp/dead-config.json`, you will see `network_error → armed → waiting_for_network`.
+
+**Note the `-p` limitation** (verified): `pi -p` exits as soon as the agent settles,
+while the resume path still has to wait ~800ms for routes to stabilise and then
+re-probe — so the process is already gone and **`auto_resume` never appears**.
+That is precisely why `pi-resume-run.sh` exists for `-p` runs: it is the thing
+that relaunches the process.
+
+To watch a full `auto_resume`, use an interactive pi session. The automated
+equivalent is the "waits for the link to come back, then resumes the session"
+case in `tests/test_net_resume.mjs`, which drives the same code path with a fake
+pi API.
 
 ## 3. Troubleshooting
 
