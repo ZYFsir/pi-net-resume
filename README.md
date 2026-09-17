@@ -8,7 +8,7 @@ working through the outage.
 ```
 wifi-fastlink/     Wi-Fi fast-reconnect watcher (NetworkManager + nmcli, user systemd service)
 pkg/pi-net-resume/ the publishable pi package (extension + headless wrapper)
-tests/             22 Wi-Fi state-machine cases + 15 extension cases, all offline
+tests/             22 Wi-Fi state-machine cases + 19 extension cases, all offline
 ```
 
 Install the pi side:
@@ -26,6 +26,7 @@ Install the Wi-Fi side (Linux + NetworkManager only, no sudo needed):
 Details: [wifi-fastlink/README.md](wifi-fastlink/README.md),
 [pkg/pi-net-resume/README.md](pkg/pi-net-resume/README.md).
 **Acceptance procedure:** [TESTING.md](TESTING.md).
+**Working on this repo:** [MAINTAINING.md](MAINTAINING.md).
 
 ---
 
@@ -132,20 +133,23 @@ No SSID, interface or path is hardcoded: `targets` starts empty
 - A user-level service only runs while you are logged in. For always-on:
   `sudo loginctl enable-linger $USER`.
 
-## 7. Publishing
-```bash
-./publish-package.sh              # verify only: tests, package.json, jiti load, tarball
-./publish-package.sh --publish    # then npm publish
-```
-
-The pi package directory is `pkg/pi-net-resume/`; its README is bilingual and is
-the one users see on npm.
-
-## 8. Rollback
+## 7. Uninstalling / reverting
 
 ```bash
 ./uninstall.sh
-cp ~/.pi/agent/settings.json.bak.<timestamp> ~/.pi/agent/settings.json
+```
+
+That stops and removes both components. It deliberately **keeps** your config
+(`~/.config/wifi-fastlink/config.json`, `~/.pi/agent/pi-net-resume.json`) and the
+logs, so a reinstall picks up where you left off.
+
+To also undo the one change `install.sh` makes outside its own directories — the
+`retry.maxRetries` bump in `~/.pi/agent/settings.json` — restore the backup it
+left behind:
+
+```bash
+ls -t ~/.pi/agent/settings.json.bak.* | head -1        # find the newest backup
+cp "$(ls -t ~/.pi/agent/settings.json.bak.* | head -1)" ~/.pi/agent/settings.json
 ```
 
 ---
@@ -158,7 +162,7 @@ cp ~/.pi/agent/settings.json.bak.<timestamp> ~/.pi/agent/settings.json
 ```
 wifi-fastlink/     Wi-Fi 快速重连看门狗（NetworkManager + nmcli，用户级 systemd 服务）
 pkg/pi-net-resume/ 可发布的 pi 包（扩展 + 无头包装脚本）
-tests/             22 个 Wi-Fi 状态机用例 + 15 个扩展用例，全部离线可跑
+tests/             22 个 Wi-Fi 状态机用例 + 19 个扩展用例，全部离线可跑
 ```
 
 装 pi 侧：
@@ -266,18 +270,20 @@ AP 真的离开又回来；密码已保存；且你在意"~3 秒"和"NM 的 3 �
   "重试耗尽"。打字或 `/net-resume off` 都能取消。
 * 用户级服务只在登录会话中运行；要常驻：`sudo loginctl enable-linger $USER`。
 
-### 七、发布
-
-```bash
-./publish-package.sh              # 只校验：测试、package.json、jiti 加载、tarball
-./publish-package.sh --publish    # 再执行 npm publish
-```
-
-pi 包目录是 `pkg/pi-net-resume/`，其 README 为中英双语，也是用户在 npm 上看到的那份。
-
-### 八、回滚
+### 七、卸载 / 还原
 
 ```bash
 ./uninstall.sh
-cp ~/.pi/agent/settings.json.bak.<时间戳> ~/.pi/agent/settings.json
+```
+
+这会停掉并移除两个组件。它**故意保留**你的配置
+（`~/.config/wifi-fastlink/config.json`、`~/.pi/agent/pi-net-resume.json`）和日志，
+所以重装能接着原来的配置跑。
+
+如果想连 `install.sh` 在自身目录之外做的唯一一处改动也一起还原 —— 即
+`~/.pi/agent/settings.json` 里的 `retry.maxRetries` —— 用它留下的备份恢复：
+
+```bash
+ls -t ~/.pi/agent/settings.json.bak.* | head -1        # 找最新的备份
+cp "$(ls -t ~/.pi/agent/settings.json.bak.* | head -1)" ~/.pi/agent/settings.json
 ```

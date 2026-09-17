@@ -1,5 +1,7 @@
 # 测试与验收
 
+[中文](#测试与验收) | **English**（在文件后半部分，从 “Testing and acceptance” 开始）
+
 ## 0. 自动化测试（不碰网络，随时可跑）
 
 ```bash
@@ -12,7 +14,8 @@ python3 tests/test_wifi_fastlink.py
 # 跑 NmAdapter，防止 "参数写错但假 adapter 看不出来" 这类回归（例如
 # `-f NAME` 在 `connection show <名字>` 下会被 nmcli 拒绝）。
 
-# pi-net-resume 扩展：10 个用例（真实 TCP socket 模拟"断网/恢复"）
+# pi-net-resume 扩展：19 个用例（真实 TCP socket 模拟"断网/恢复"；含探测目标
+# 解析、配置路径解析，以及"哪些错误归我们、哪些归 pi-auto-resume"的边界）
 node --experimental-strip-types tests/test_net_resume.mjs
 
 # 环境体检：网卡、电台、当前链路、可见 AP、目标 SSID 是否可见
@@ -165,4 +168,186 @@ PI_NET_RESUME_CONFIG=/tmp/dead-config.json \
 ```bash
 ./uninstall.sh                                   # 停掉并移除两份组件
 cp ~/.pi/agent/settings.json.bak.<时间戳> ~/.pi/agent/settings.json   # 还原 retry 调整
+```
+
+---
+
+# Testing and acceptance (English)
+
+## 0. Automated tests (offline, run them any time)
+
+```bash
+cd pi_fast_resume
+
+# Wi-Fi watcher state machine: 22 cases (fake NetworkManager + fake clock).
+# Three of them drive the real NmAdapter against a stub nmcli that enforces the
+# same field validation the real tool does, so an argument-shape regression
+# (e.g. `-f NAME` being rejected for the profile form of `connection show`)
+# cannot pass unnoticed.
+python3 tests/test_wifi_fastlink.py
+
+# pi-net-resume extension: 19 cases (a real TCP socket stands in for
+# "network down / back up"). Also covers probe-target parsing, config-path
+# resolution, and the boundary with pi-auto-resume (which errors are ours).
+node --experimental-strip-types tests/test_net_resume.mjs
+
+# Environment health check: interface, radio, current link, visible APs.
+python3 wifi-fastlink/wifi_fastlink.py --selftest
+
+# One decision cycle, changing nothing.
+python3 wifi-fastlink/wifi_fastlink.py --once --dry-run --target <SSID>
+
+# Headless wrapper: usage self-check (exit 2) + an offline probe
+# (a dead local port = reliably offline, exit 1; no real network involved).
+pi-net-resume/pi-resume-run.sh
+PI_RESUME_PROBE_HOST=127.0.0.1 PI_RESUME_PROBE_PORT=59999 \
+  pi-net-resume/pi-resume-run.sh --check-online
+```
+
+## 1. Accepting the "reconnect within 5 seconds" claim
+
+This step really does cut the network, so **make sure the pi session is idle and
+that you are not going to send a message** (while offline pi cannot reach the
+model). A human operates the hotspot; the script only records the timeline.
+
+```bash
+# terminal A: watch the timeline
+tail -f ~/.local/state/wifi-fastlink/wifi-fastlink.log
+
+# terminal B: confirm the service is running
+systemctl --user status wifi-fastlink
+```
+
+Procedure:
+
+1. Turn the phone hotspot **off** (or enable airplane mode).
+2. The log should show:
+   ```
+   INFO  not connected to a target (hhh), searching
+   EVENT {"event":"search_start", ...}
+   ```
+   (appearing within a second means the watcher entered the search state)
+3. Wait **2–3 minutes**. This matters: it lets NetworkManager's periodic scan
+   back off to 120 s. Skip it and NM may reconnect quickly on its own, hiding the
+   difference this tool makes.
+4. Turn the hotspot **on**, and note the moment you did it.
+5. The log should then show:
+   ```
+   INFO  hotspot 'hhh' is now visible
+   INFO  activating 'hhh' (attempt 1, ...ms after first sighting)
+   INFO  reconnected to 'hhh' (172.20.10.x/28) - ...ms from first sighting, ...ms from search start
+   EVENT {"event":"connected","seen_to_connected_ms":...,"search_to_connected_ms":...}
+   ```
+
+How to read it:
+
+| Metric | Meaning | Target |
+| --- | --- | --- |
+| `search_start` → `ssid_seen` | discovery latency from the scan cadence | ≤ one scan (~1–3 s) |
+| `seen_to_connected_ms` | association + 4-way handshake + DHCP | as small as possible |
+| `search_to_connected_ms` | search start → IP address | reference value |
+
+Note that `ssid_seen` can be up to one scan period after you switched the hotspot
+on, because scanning is the only way to discover it. So the number that really
+matters is wall-clock "hotspot on → connected". To measure it precisely, run this
+at the moment you press the button on the phone:
+
+```bash
+date +%s.%3N
+```
+
+then subtract it from the `ts` of the `EVENT connected` line.
+
+If `search_to_connected_ms` is too large:
+
+* `ssid_seen` arrives late → lower `scan_interval_ms` in
+  `~/.config/wifi-fastlink/config.json` (NetworkManager clamps to ~1500 ms; below
+  that buys nothing, since the scan itself is the cost).
+* `seen_to_connected_ms` is large → association/DHCP is slow; look at
+  `802-11-wireless.powersave` (turn power saving off).
+
+## 2. Accepting "the pi agent continues after an outage"
+
+### 2.1 The automated equivalent
+
+The "waits for the link to come back, then resumes the session" case in
+`tests/test_net_resume.mjs` is the whole flow: inject a connectivity error → pi
+stops retrying → wait → the port comes back → the continuation message is
+injected. If it passes, the extension's logic is correct.
+
+### 2.2 The real scenario
+
+```bash
+# terminal A: follow the extension's JSON evidence chain
+tail -f ~/.local/state/pi-net-resume/pi-net-resume.log
+
+# inside pi: start something that takes a few minutes
+#   /net-resume            -> status (enabled / armed / probe target / config path)
+```
+
+Then:
+
+1. Turn the hotspot **off** while the task is running.
+2. pi shows retry warnings and then (after 3 retries, ~14 s by default) gives up
+   with an error. With `retry.maxRetries=6` it takes about two minutes.
+3. The log should show, in order:
+   ```json
+   {"event":"network_error","message":"fetch failed"}
+   {"event":"armed","detail":"NetworkManager reports disconnected"}
+   {"event":"waiting_for_network","failureAt":...}
+   ```
+   and the pi footer shows `network down - waiting to resume`.
+4. Turn the hotspot back on. Once wifi-fastlink has reconnected (verified in
+   section 1), the extension's next probe succeeds and it writes:
+   ```json
+   {"event":"auto_resume","resumeCount":1,"waitedMs":41300,"detail":"api.example.com:443 reachable"}
+   ```
+   A user message ("The network is back… continue") appears in the session and
+   **the original task carries on**.
+5. If you would rather not wait for it, `/net-resume off`, or just type
+   something, cancels it.
+
+### 2.3 Testing the extension alone, without touching the real network
+
+Point it at a dead port with a fake provider, and you can rehearse on demand:
+
+```bash
+cat > /tmp/dead-provider.ts <<'TS'
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+export default function (pi: ExtensionAPI) {
+  pi.registerProvider("dead", {
+    baseUrl: "http://127.0.0.1:59999/v1",
+    apiKey: "$DEAD_KEY",
+    api: "openai-completions",
+    models: [{ id: "dead", name: "dead", reasoning: false, input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 8000, maxTokens: 1024 }],
+  });
+}
+TS
+PI_NET_RESUME_CONFIG=/tmp/dead-config.json \
+  pi -e ./pi-net-resume/index.ts -e /tmp/dead-provider.ts \
+     --provider dead --model dead "hello"
+```
+
+With `armOnlyWhenOffline=false` and `maxAutoResumes=1` in
+`/tmp/dead-config.json`, you will see "network_error → armed → auto_resume", and
+the cap trips after the second failure.
+
+## 3. Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| The log never updates | `systemctl --user status wifi-fastlink`; `journalctl --user -u wifi-fastlink -n 50` |
+| The target is never found | `python3 wifi-fastlink/wifi_fastlink.py --selftest` and look for the SSID under `visible APs`; make sure the hotspot broadcasts its SSID |
+| Visible but will not connect | `activation ... failed` in the log; confirm a profile with that name exists (`nmcli -t -f NAME con show`), and map it via `connection_names` if needed |
+| pi does not auto-resume | `/net-resume` for status; confirm the extension loaded (an `extension_loaded` line in the log); confirm the error is connectivity-class rather than rate-limit/auth |
+| The extension is not loaded at all | `pi list` (or `ls ~/.pi/agent/extensions/pi-net-resume/`); then `/reload` inside pi |
+| The service does not survive logout | with `Linger=no` a user service only runs while you are logged in: `sudo loginctl enable-linger $USER` |
+
+## 4. Uninstalling
+
+```bash
+./uninstall.sh                                   # stop and remove both components
+cp ~/.pi/agent/settings.json.bak.<timestamp> ~/.pi/agent/settings.json   # undo the retry tuning
 ```
