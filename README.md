@@ -5,6 +5,10 @@ working through the outage.
 
 **English** | [中文](#中文)
 
+[![npm version](https://img.shields.io/npm/v/pi-net-resume)](https://www.npmjs.com/package/pi-net-resume)
+[![license](https://img.shields.io/npm/l/pi-net-resume)](LICENSE)
+[![tests](https://github.com/ZYFsir/pi-net-resume/actions/workflows/tests.yml/badge.svg)](https://github.com/ZYFsir/pi-net-resume/actions/workflows/tests.yml)
+
 ```
 wifi-fastlink/     Wi-Fi fast-reconnect watcher (NetworkManager + nmcli, user systemd service)
 pkg/pi-net-resume/ the publishable pi package (extension + headless wrapper)

@@ -1,0 +1,68 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The extension declares engines.node >= 22; python3 is used by the
+        # Wi-Fi watcher, its tests, and the headless wrapper's probe.
+        node: ["22"]
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Wi-Fi watcher state machine (offline, fake NetworkManager)
+        run: python3 tests/test_wifi_fastlink.py
+
+      - name: pi-net-resume extension (offline, real TCP sockets on loopback)
+        run: node --experimental-strip-types tests/test_net_resume.mjs
+
+      - name: Shell scripts parse
+        run: |
+          for script in install.sh uninstall.sh publish-package.sh \
+                        wifi-fastlink/install.sh pi-net-resume/pi-resume-run.sh; do
+            bash -n "$script"
+            echo "ok $script"
+          done
+
+      - name: JSON files parse
+        run: |
+          for file in package.json \
+                      pkg/pi-net-resume/package.json \
+                      pkg/pi-net-resume/config.example.json \
+                      wifi-fastlink/config.example.json; do
+            python3 -c "import json,sys; json.load(open(sys.argv[1], encoding='utf-8'))" "$file"
+            echo "ok $file"
+          done
+
+  # The release gate itself: same checks a maintainer runs before publishing,
+  # so a red build here means a publish would have been wrong too.
+  package-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run the publish gate in verify-only mode
+        run: ./publish-package.sh

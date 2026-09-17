@@ -113,7 +113,13 @@ if (!status.includes("0/5")) throw new Error(`config at <agent dir>/pi-net-resum
 if (!status.includes("pi-net-resume.json")) throw new Error(`config path not reported:\n${status}`);
 console.log("  ok: loads, registers /net-resume, and reads the documented config path");
 JS
-(cd "$TMP" && npm install --silent --no-save jiti >/dev/null 2>&1)
+# Fetch jiti the same way pi's own install does.  A failure here must be loud:
+# without it the load check below cannot run, and a silent skip would turn this
+# gate into a no-op that still reports success (e.g. on a runner with no network).
+if ! (cd "$TMP" && npm install --silent --no-save jiti >/dev/null 2>&1); then
+    echo "  FAIL: could not install jiti (needed to load the extension the way pi does)"
+    exit 1
+fi
 node "$TMP/load.mjs" "$PKG_DIR/index.ts"
 
 echo

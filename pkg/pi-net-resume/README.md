@@ -4,6 +4,10 @@ Auto-continue a pi session after a network outage.
 
 **English** | [中文](#中文)
 
+[![npm version](https://img.shields.io/npm/v/pi-net-resume)](https://www.npmjs.com/package/pi-net-resume)
+[![license](https://img.shields.io/npm/l/pi-net-resume)](./LICENSE)
+[![tests](https://github.com/ZYFsir/pi-net-resume/actions/workflows/tests.yml/badge.svg)](https://github.com/ZYFsir/pi-net-resume/actions/workflows/tests.yml)
+
 When a phone hotspot or Wi-Fi link drops, the provider request fails, pi retries
 it `retry.maxRetries` times (default 3: backoff 2s/4s/8s, about 14 seconds), and
 then the agent settles with an error and simply stops. Nothing happens until a
