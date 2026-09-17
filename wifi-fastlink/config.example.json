@@ -1,0 +1,30 @@
+{
+  "_comment": [
+    "wifi-fastlink configuration.",
+    "targets: SSIDs to keep connected, in priority order. Leave empty ([ ]) to",
+    "         auto-learn whatever network the machine is on when it starts.",
+    "connection_names: optional SSID -> NetworkManager connection name mapping,",
+    "         only needed when the saved profile has a different name.",
+    "All distances are milliseconds unless the key ends in _s."
+  ],
+  "targets": [],
+  "connection_names": {},
+
+  "interface": "auto",
+  "poll_connected_ms": 1000,
+  "event_wait_s": 20,
+  "scan_interval_ms": 1200,
+  "activation_timeout_s": 25,
+  "activate_on_sight": true,
+  "takeover_other_networks": false,
+
+  "log_file": "~/.local/state/wifi-fastlink/wifi-fastlink.log",
+  "log_max_bytes": 2097152,
+  "notify": false,
+  "radio_off_poll_s": 5,
+
+  "slow_after_s": 0,
+  "slow_scan_interval_ms": 5000,
+
+  "verbose": false
+}

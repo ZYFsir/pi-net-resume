@@ -1,0 +1,48 @@
+{
+  "name": "pi-net-resume",
+  "version": "1.0.0",
+  "description": "Auto-continue a pi session after a network outage: arm on a connectivity error, wait for the link, then resume the same session with full context.",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "pi-coding-agent",
+    "network",
+    "offline",
+    "resume",
+    "reconnect",
+    "wifi",
+    "hotspot"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "index.ts",
+    "config.example.json",
+    "pi-resume-run.sh",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZYFsir/pi-net-resume.git"
+  },
+  "homepage": "https://github.com/ZYFsir/pi-net-resume#readme",
+  "bugs": {
+    "url": "https://github.com/ZYFsir/pi-net-resume/issues"
+  },
+  "author": "ZYFsir"
+}

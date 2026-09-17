@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Node / npm
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# Packed artifacts
+*.tgz
+
+# pi / agent runtime state that must never be committed
+.pi/tasks/
+.pi/npm/
+.pi/settings.json
+.pi/extensions/
+.pi/git/
+
+# Editor / OS
+.DS_Store
+*.swp
+*~
+
+# Backups made by install.sh and by hand
+*.bak
+*.bak.*

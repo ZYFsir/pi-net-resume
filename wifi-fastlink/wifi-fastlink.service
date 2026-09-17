@@ -1,0 +1,18 @@
+[Unit]
+Description=wifi-fastlink - fast reconnect to a preferred Wi-Fi hotspot
+Documentation=file:%h/.local/share/wifi-fastlink/README.md
+After=network.target
+
+[Service]
+Type=simple
+# %h is the user's home.  The interpreter path is injected by install.sh from
+# `command -v python3`, so the unit is not tied to a distro's layout.
+ExecStart=@PYTHON@ %h/.local/share/wifi-fastlink/wifi_fastlink.py --config %h/.config/wifi-fastlink/config.json
+Restart=always
+RestartSec=3
+# Scanning must never get in the way of real work:
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target
