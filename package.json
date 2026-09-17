@@ -1,0 +1,8 @@
+{
+  "name": "pi-net-resume-repo",
+  "private": true,
+  "description": "Repo root shim so `pi install git:github.com/ZYFsir/pi-net-resume` works. The publishable npm package lives in pkg/pi-net-resume/ (that directory is what `npm publish` ships).",
+  "pi": {
+    "extensions": ["pkg/pi-net-resume/index.ts"]
+  }
+}
