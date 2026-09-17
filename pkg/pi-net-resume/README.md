@@ -24,8 +24,14 @@ Or from a git ref / a local checkout:
 
 ```bash
 pi install git:github.com/ZYFsir/pi-net-resume@v1.0.0
-pi install /path/to/this/directory
+pi install ./                                  # from a checkout of this package
 ```
+
+This package lives in the `pkg/pi-net-resume/` subdirectory of the
+[repository](https://github.com/ZYFsir/pi-net-resume); the repo root carries a
+small `package.json` that points pi at it, so the git install above works
+without extra flags. `pi install` from a *local checkout* must point at the
+package directory itself.
 
 ### One setting you should change
 
@@ -245,8 +251,12 @@ pi -e npm:pi-net-resume           # 临时试用一次，不改 settings
 
 ```bash
 pi install git:github.com/ZYFsir/pi-net-resume@v1.0.0
-pi install /path/to/this/directory
+pi install ./                                  # 在包目录的检出里执行
 ```
+
+本包位于[仓库](https://github.com/ZYFsir/pi-net-resume)的 `pkg/pi-net-resume/`
+子目录；仓库根有一个小 `package.json` 指向它，所以上面的 git 安装命令可以直接用。
+从**本地检出**安装时，路径要指向包目录本身。
 
 #### 有一项设置建议你改
 

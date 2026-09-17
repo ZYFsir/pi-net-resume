@@ -134,6 +134,35 @@ done
 echo "  ok: no tests/, wifi-fastlink/, node_modules/ or .pi/ leakage"
 
 echo
+# A git install loads the *clone root*, and pi has no subdirectory syntax.  If the
+# root manifest does not point at the extension, `pi install git:...` succeeds
+# while loading nothing -- a silent failure worth guarding against.
+if [[ -f "$REPO_DIR/package.json" ]]; then
+    echo "== 5b/6 repo-root shim resolves for git installs =="
+    python3 - "$REPO_DIR" <<'PY'
+import json, os, sys
+
+root = sys.argv[1]
+manifest = json.load(open(os.path.join(root, "package.json"), encoding="utf-8"))
+entries = (manifest.get("pi") or {}).get("extensions") or []
+if not entries:
+    print("  FAIL: repo-root package.json has no pi.extensions; "
+          "`pi install git:...` would load nothing")
+    raise SystemExit(1)
+for rel in entries:
+    # glob-free paths only, which is what a shim should use
+    target = os.path.join(root, rel)
+    if not os.path.isfile(target):
+        print(f"  FAIL: repo-root pi.extensions entry does not resolve: {rel}")
+        raise SystemExit(1)
+    print(f"  ok: git install would load {rel}")
+PY
+else
+    echo "== 5b/6 repo-root shim =="
+    echo "  skipped (no package.json at the repo root)"
+fi
+
+echo
 echo "== 6/6 publish =="
 if (( DO_PUBLISH )); then
     if [[ -z "${NPM_TOKEN:-}" ]] && ! npm whoami >/dev/null 2>&1; then
