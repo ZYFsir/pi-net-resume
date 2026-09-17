@@ -232,6 +232,18 @@ run succeeds or a limit is reached.
 No host, path or provider is hardcoded, so this works on macOS and Windows in
 TCP-probe-only mode.
 
+## Credits
+
+The invisible-continuation technique (a hidden custom message that starts the
+turn, removed again in a `context` hook before the provider call) and the
+shaping of the "strip trailing failed attempts" helper are adapted from
+[pi-invisible-continue](https://github.com/monotykamary/pi-invisible-continue)
+by [@monotykamary](https://github.com/monotykamary), MIT licensed. That project
+solves a different problem (deliberate continuation, via `/continue`); this one
+uses the technique to resume automatically after an outage, and is narrower in
+one respect: it strips failed attempts only on the turn it started, not on every
+later request.
+
 ## License
 
 MIT
@@ -442,6 +454,15 @@ tail -f ~/.local/state/pi-net-resume/pi-net-resume.log
 | `notify-send` | 桌面通知 | 静默跳过 |
 
 没有硬编码的主机、路径或 provider，因此在 macOS 和 Windows 上以纯 TCP 探测模式可用。
+
+### 致谢
+
+"隐形续跑"这一手法（用一条隐藏的自定义消息启动该轮，再由 `context` 钩子在发送给
+provider 之前移除它）以及"剥掉尾部失败尝试"这个辅助函数的形状，改编自
+[pi-invisible-continue](https://github.com/monotykamary/pi-invisible-continue)
+（作者 [@monotykamary](https://github.com/monotykamary)，MIT 许可）。
+那个项目解决的是另一个问题（手动 `/continue` 主动继续）；本项目把它用于断网后自动续跑，
+并在一点上更收窄：只在**它自己启动的那一轮**剥掉失败尝试，而不是之后每一次请求。
 
 ### 许可
 
