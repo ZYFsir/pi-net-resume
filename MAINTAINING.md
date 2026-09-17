@@ -50,6 +50,39 @@ The gate runs six checks and stops at the first failure:
 Publishing to npm needs credentials (`npm login`); the script refuses to publish
 without them.
 
+### Two ways to publish
+
+**CI (preferred): OIDC trusted publishing.** `.github/workflows/publish.yml`
+publishes when a `v*` tag is pushed, authenticating with a short-lived OIDC
+token -- there is no `NPM_TOKEN` secret in this repository. The trust lives on
+npmjs.com (package Settings -> Trusted Publisher -> GitHub Actions) and must
+name this file exactly:
+
+| Field | Value |
+| --- | --- |
+| Organization or user | `ZYFsir` |
+| Repository | `pi-net-resume` |
+| Workflow filename | `publish.yml` |
+| Environment name | *(empty -- the workflow sets none)* |
+| Allowed actions | allow `npm publish` |
+
+```bash
+git tag -a v1.1.0 -m "pi-net-resume 1.1.0"
+git push origin v1.1.0          # the tag is the release button
+```
+
+The workflow refuses to publish when the tag and `package.json` disagree, so a
+mistyped tag cannot ship the wrong version. It also runs the gate first.
+
+Requirements, all enforced by the runner rather than assumed: `id-token: write`,
+npm >= 11.5.1 (the bundled npm is older, so the workflow upgrades it), Node >=
+22.14.0, and a GitHub-hosted runner. Provenance attaches automatically for a
+public package from a public repository.
+
+**Local.** `./publish-package.sh --publish` still works and is the way to go when
+you want to publish without tagging. It needs your npm credentials and, with 2FA
+enabled, an OTP prompt -- which is likely why CI publishing is worth setting up.
+
 ## Releasing a version
 
 ```bash
@@ -157,6 +190,36 @@ publish-package.sh      发布门禁 + 发布脚本
    语法，shim 坏掉就意味着 `pi install git:...` **安装成功但什么都不加载**
 
 发布到 npm 需要凭据（`npm login`），没有凭据脚本会拒绝发布。
+
+#### 两种发布方式
+
+**CI（推荐）：OIDC 可信发布。** `.github/workflows/publish.yml` 在推送 `v*` 标签时发布，
+用短期 OIDC token 认证 —— **本仓库里没有任何 `NPM_TOKEN` 密钥**。
+信任关系配置在 npmjs.com（包 Settings → Trusted Publisher → GitHub Actions），
+必须与文件名完全一致：
+
+| 字段 | 值 |
+| --- | --- |
+| Organization or user | `ZYFsir` |
+| Repository | `pi-net-resume` |
+| Workflow filename | `publish.yml` |
+| Environment name | （留空 —— 本 workflow 未设置环境） |
+| Allowed actions | 允许 `npm publish` |
+
+```bash
+git tag -a v1.1.0 -m "pi-net-resume 1.1.0"
+git push origin v1.1.0          # 打标签就是"发布按钮"
+```
+
+workflow 会在标签与 `package.json` 版本不一致时拒绝发布，所以打错标签不会发错版本；
+它也会先跑一遍门禁。
+
+前置条件（由 runner 强制，而非假设）：`id-token: write`、npm >= 11.5.1
+（runner 自带的 npm 太旧，workflow 会显式升级）、Node >= 22.14.0、
+必须用 GitHub 托管的 runner。公开仓库 + 公开包会自动生成 provenance。
+
+**本地发布。** `./publish-package.sh --publish` 依然可用，适合不想打标签时。
+它需要你的 npm 凭据；开了 2FA 会要求输入 OTP —— 这大概就是你该用 CI 发布的理由。
 
 ### 发版本
 
